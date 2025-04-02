@@ -569,18 +569,28 @@ indentLevel++;
 }
 
 function applyEmenta() {
-const editor = document.getElementById('inputText');
-const selectedText = window.getSelection().toString(); 
+  const selectedText = window.getSelection().toString();
 
-if (selectedText.trim() === "") { 
-return; 
+  if (selectedText.trim() === "") return;
+
+  const range = window.getSelection().getRangeAt(0);
+
+  const ementaHTML = `
+    <div style="
+      color: #800000;
+      display: block;
+      width: 60%;
+      margin-left: auto;
+      margin-right: 0;
+      text-align: right;
+      font-weight: normal;">
+      ${selectedText}
+    </div>`;
+
+  range.deleteContents();
+  range.insertNode(document.createRange().createContextualFragment(ementaHTML));
 }
 
-const range = window.getSelection().getRangeAt(0); 
-const ementaHTML = `<span style="color:#800000; display:block; text-align:justify; margin-left: 9cm;">${selectedText}</span>`;
-range.deleteContents();
-range.insertNode(document.createRange().createContextualFragment(ementaHTML));
-}
 
 function insertCabecalho() {
 const editor = document.getElementById('inputText');
@@ -605,18 +615,35 @@ return formatted.trim();
 }
 
 function convertToHTML() {
-const editor = document.getElementById('inputText');
-const output = document.getElementById('codeOutput');
-let htmlContent = editor.innerHTML;
+  const editor = document.getElementById('inputText');
+  const output = document.getElementById('codeOutput');
+  let htmlContent = editor.innerHTML;
 
-// Formatar o HTML antes de exibir
-let formattedHTML = formatHTML(htmlContent);
+  // 🔥 Remove lixo do MS Word (VML, mso, comentários condicionais, namespaces)
+  htmlContent = htmlContent
+    .replace(/<!--\[if.*?endif\]-->/gis, '')                             // Comentários condicionais
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')                     // <style> com mso e VML
+    .replace(/<(\/)?(o|w|v):[^>]*>/gi, '')                              // Tags com prefixo o:, w:, v:
+    .replace(/\sstyle="[^"]*mso-[^"]*"/gi, '')                          // Inline com mso-*
+    .replace(/\sclass="Mso[a-zA-Z0-9]*"/gi, '')                         // Classes do Word
+    .replace(/\sxmlns(:\w+)?="[^"]*"/gi, '');                           // Namespaces do Word
 
-// Certificar-se de que todos os links tenham as propriedades preservadas do Elementor
-formattedHTML = formattedHTML.replace(/<a\s+href="([^"]+)"([^>]*)>/g, '<a href="$1" style="color: blue !important; text-decoration: underline !important;" data-elementor-preserved="true"$2>');
+  // Formata o HTML antes de exibir
+  let formattedHTML = formatHTML(htmlContent);
 
-output.textContent = formattedHTML;
+  // Força estilo dos links (Elementor)
+  formattedHTML = formattedHTML.replace(
+    /<a\s+href="([^"]+)"([^>]*)>/g,
+    '<a href="$1" style="color: blue !important; text-decoration: underline !important;" data-elementor-preserved="true"$2>'
+  );
+
+  // 🔁 Envolve tudo no bloco com <br><div align="justify"><font color="black">
+  const finalHTML = `<br><div align="justify"><font color="black">\n${formattedHTML}\n</font></div>`;
+
+  output.textContent = finalHTML;
 }
+
+
 
 function clearText() {
 const editor = document.getElementById('inputText');
@@ -648,17 +675,27 @@ if (url && url.trim() !== "") {
 document.execCommand('insertHTML', false, rodapeTexto);
 }
 
-// Preservar formatação ao colar
+// Preservar formatação ao colar, mas forçar justificado
 document.getElementById('inputText').addEventListener('paste', function(e) {
-    // Evita o comportamento padrão que poderia limpar a formatação
-    e.preventDefault();
-    
-    // Obtém o texto colado com formatação
-    const text = e.clipboardData.getData('text/html') || e.clipboardData.getData('text');
-    
-    // Insere o conteúdo preservando a formatação
-    document.execCommand('insertHTML', false, text);
+  e.preventDefault();
+  
+  const html = e.clipboardData.getData('text/html') || e.clipboardData.getData('text/plain');
+
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = html;
+
+  // Limpa estilos do Word e aplica justificado
+  const elements = tempDiv.querySelectorAll('*');
+  elements.forEach(el => {
+    el.removeAttribute('style');
+    el.removeAttribute('class');
+    el.style.textAlign = 'justify';
+  });
+
+  document.execCommand('insertHTML', false, tempDiv.innerHTML);
 });
+
+
 
 // Função para alternar a visibilidade do manual
 function toggleManual() {
